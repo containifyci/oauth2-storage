@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 
 	"github.com/containifyci/go-self-update/pkg/updater"
 
@@ -12,9 +13,9 @@ import (
 )
 
 var (
-	version          = "dev"
-	commit           = "none"
-	date             = "unknown"
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
 )
 
 func main() {
@@ -61,10 +62,10 @@ func start() {
 	initLogger(*debug)
 
 	err := service.StartServers(service.Config{
-		StorageFile:     *storageFile,
-		PublicKey:       *publicKey,
-		GRPCPort:        *grpcPort,
-		HTTPPort:        *httpPort,
+		StorageFile:     getenv("STORAGE_FILE", *storageFile),
+		PublicKey:       getenv("PUBLIC_KEY", *publicKey),
+		GRPCPort:        getenvi("GRPC_PORT", *grpcPort),
+		HTTPPort:        getenvi("HTTP_PORT", *httpPort),
 		PodNamespace:    getenv("POD_NAMESPACE", ""),
 		TokenSyncPeriod: getenv("TOKEN_SYNC_PERIOD", "0m"),
 	})
@@ -90,4 +91,17 @@ func getenv(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func getenvi(key string, fallback int) int {
+	value := os.Getenv(key)
+	if len(value) == 0 {
+		return fallback
+	}
+	v, err := strconv.Atoi(value)
+	if err != nil {
+		slog.Error("Error parsing value from env", "error", err, "env", key)
+		return fallback
+	}
+	return v
 }
