@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/containifyci/github-oauth2-service/pkg/proto"
+	"github.com/containifyci/oauth2-storage/pkg/proto"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,26 +62,26 @@ func (s *K8sStorage) GetSecret() (*v1.Secret, error) {
 	return secret, nil
 }
 
-func (s *K8sStorage) Load() (map[int64]*proto.Installation, error) {
+func (s *K8sStorage) Load() (map[string]*proto.Installation, error) {
 	secret, err := s.GetSecret()
 	if err != nil {
 		return nil, err
 	}
 
 	if secret == nil {
-		return make(map[int64]*proto.Installation, 0), nil
+		return make(map[string]*proto.Installation, 0), nil
 	}
 
 	secretData := secret.Data["tokens"]
 	if len(secretData) > 0 {
-		var tokens map[int64]*proto.Installation
+		var tokens map[string]*proto.Installation
 		err = json.Unmarshal(secretData, &tokens)
 		return tokens, err
 	}
-	return make(map[int64]*proto.Installation, 0), nil
+	return make(map[string]*proto.Installation, 0), nil
 }
 
-func (s *K8sStorage) Save(tokens map[int64]*proto.Installation) error {
+func (s *K8sStorage) Save(tokens map[string]*proto.Installation) error {
 	data, err := json.Marshal(tokens)
 	if err != nil {
 		return err

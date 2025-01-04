@@ -8,7 +8,7 @@ import (
 
 	"github.com/containifyci/go-self-update/pkg/updater"
 
-	"github.com/containifyci/github-oauth2-service/pkg/service"
+	"github.com/containifyci/oauth2-storage/pkg/service"
 )
 
 var (
@@ -31,7 +31,7 @@ func main() {
 	switch command {
 	case "update":
 		u := updater.NewUpdater(
-			"github-oauth2-service", "containifyci", "github-oauth2-service", version,
+			"oauth2-storage", "containifyci", "oauth2-storage", version,
 		)
 		updated, err := u.SelfUpdate()
 		if err != nil {

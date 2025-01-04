@@ -13,7 +13,7 @@ import (
 
 func main() {
 	os.Chdir("../")
-	opts := build.NewGoServiceBuild("github-oauth2-service")
+	opts := build.NewGoServiceBuild("oauth2-storage")
 	opts.Image = ""
 	opts.File = "cmd/main.go"
 	opts.Properties = map[string]*build.ListValue{

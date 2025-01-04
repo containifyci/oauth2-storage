@@ -10,15 +10,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/containifyci/github-oauth2-service/pkg/auth"
-	"github.com/containifyci/github-oauth2-service/pkg/config"
-	"github.com/containifyci/github-oauth2-service/pkg/proto"
-	"github.com/containifyci/github-oauth2-service/pkg/storage"
+	"github.com/containifyci/oauth2-storage/pkg/auth"
+	"github.com/containifyci/oauth2-storage/pkg/config"
+	"github.com/containifyci/oauth2-storage/pkg/proto"
+	"github.com/containifyci/oauth2-storage/pkg/storage"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
@@ -36,7 +35,7 @@ type (
 	TokenService struct {
 		cfg     Config
 		mu      sync.RWMutex
-		tokens  map[int64]*proto.Installation
+		tokens  map[string]*proto.Installation
 		storage storage.Storage
 		proto.UnimplementedTokenServer
 	}
@@ -46,7 +45,7 @@ type (
 func NewTokenService(cfg Config) *TokenService {
 	tkSrv := TokenService{
 		cfg:    cfg,
-		tokens: make(map[int64]*proto.Installation),
+		tokens: make(map[string]*proto.Installation),
 	}
 
 	if cfg.StorageFile != "" {
@@ -106,7 +105,7 @@ func (s *TokenService) RetrieveInstallation(ctx context.Context, req *proto.Inst
 
 	token, found := s.tokens[req.InstallationId]
 	if !found {
-		return nil, fmt.Errorf("requested token for %d not found", req.InstallationId)
+		return nil, fmt.Errorf("requested token for %s not found", req.InstallationId)
 	}
 
 	return token, nil
@@ -119,20 +118,20 @@ func (s *TokenService) RetrieveToken(ctx context.Context, req *proto.SingleToken
 
 	tokens := s.tokens[req.InstallationId]
 	if tokens == nil {
-		log.Error().Msgf("requested token for %d not found\n", req.InstallationId)
-		return nil, fmt.Errorf("requested token for %d not found", req.InstallationId)
+		log.Error().Msgf("requested token for %s not found\n", req.InstallationId)
+		return nil, fmt.Errorf("requested token for %s not found", req.InstallationId)
 	}
 	for i, token := range tokens.Tokens {
 		if token.User == req.Token.User {
-			log.Debug().Msgf("found token for %d and user %s\n", req.InstallationId, token.User)
+			log.Debug().Msgf("found token for %s and user %s\n", req.InstallationId, token.User)
 			return &proto.SingleToken{
 				InstallationId: req.InstallationId,
 				Token:          tokens.Tokens[i],
 			}, nil
 		}
 	}
-	log.Error().Msgf("requested token for %d and user %s not found\n", req.InstallationId, req.Token.User)
-	return nil, fmt.Errorf("requested token for %d and user %s not found", req.InstallationId, req.Token.User)
+	log.Error().Msgf("requested token for %s and user %s not found\n", req.InstallationId, req.Token.User)
+	return nil, fmt.Errorf("requested token for %s and user %s not found", req.InstallationId, req.Token.User)
 }
 
 // StoreToken stores an OAuth2 token for a given GitHub user login name.
@@ -142,7 +141,7 @@ func (s *TokenService) UpdateToken(ctx context.Context, req *proto.SingleToken) 
 
 	tokens := s.tokens[req.InstallationId]
 	if tokens == nil {
-		return nil, fmt.Errorf("requested tokens for %d not found", req.InstallationId)
+		return nil, fmt.Errorf("requested tokens for %s not found", req.InstallationId)
 	}
 	for i, token := range tokens.Tokens {
 		if token.User == req.Token.User {
@@ -166,7 +165,7 @@ func (s *TokenService) StoreToken(ctx context.Context, req *proto.SingleToken) (
 		tokens = s.tokens[req.InstallationId]
 	}
 	if tokens == nil {
-		return nil, fmt.Errorf("requested token for %d not found", req.InstallationId)
+		return nil, fmt.Errorf("requested token for %s not found", req.InstallationId)
 	}
 	for i, token := range tokens.Tokens {
 		if token.User == req.Token.User {
@@ -185,7 +184,7 @@ func (s *TokenService) RevokeToken(ctx context.Context, req *proto.SingleToken) 
 
 	tokens := s.tokens[req.InstallationId]
 	if tokens == nil {
-		err := fmt.Errorf("requested token for installation %d not found", req.InstallationId)
+		err := fmt.Errorf("requested token for installation %s not found", req.InstallationId)
 		return &proto.RevokeMessage{Revoked: false, Error: &proto.RevokeMessage_Error{
 			Message: err.Error(),
 		}}, err
@@ -228,11 +227,7 @@ func startHTTPServer(tokenService *TokenService) *http.Server {
 		user := r.URL.Query().Get("user")
 		log.Debug().Msgf("installationId: %s\n", vars["installationId"])
 		fmt.Printf("user: %s\n", user)
-		installationId, err := strconv.ParseInt(vars["installationId"], 10, 64)
-		if err != nil {
-			http.Error(w, "Invalid installation ID", http.StatusBadRequest)
-			return
-		}
+		installationId := vars["installationId"]
 
 		switch r.Method {
 		case http.MethodGet:

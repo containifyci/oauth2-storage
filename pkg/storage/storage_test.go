@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/containifyci/github-oauth2-service/pkg/proto"
+	"github.com/containifyci/oauth2-storage/pkg/proto"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	testclient "k8s.io/client-go/kubernetes/fake"
@@ -34,9 +34,9 @@ func setup() {
 	}
 
 	ctx = context.WithValue(context.Background(), cxtTestKey{}, TestContext{k8sStorage: k8sStorage, fileStorage: fileStorage})
-	installations := map[int64]*proto.Installation{
-		1: {
-			InstallationId: 1,
+	installations := map[string]*proto.Installation{
+		"1": {
+			InstallationId: "1",
 			Tokens: []*proto.CustomToken{{
 				AccessToken:  "access-token",
 				RefreshToken: "refresh-token",
@@ -79,7 +79,7 @@ func TestK8sStorage_Load(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(data))
-	assert.Equal(t, int64(1), data[1].InstallationId)
+	assert.Equal(t, "1", data["1"].InstallationId)
 }
 
 func TestK8sStorage_Save(t *testing.T) {
@@ -88,9 +88,9 @@ func TestK8sStorage_Save(t *testing.T) {
 		Namespace: "test",
 		Clientset: clientset,
 	}
-	installations := map[int64]*proto.Installation{
-		2: {
-			InstallationId: 2,
+	installations := map[string]*proto.Installation{
+		"2": {
+			InstallationId: "2",
 			Tokens: []*proto.CustomToken{{
 				AccessToken:  "access-token",
 				RefreshToken: "refresh-token",
@@ -115,9 +115,9 @@ func TestFileStorage_Save(t *testing.T) {
 	storage := FileStorage{
 		File: file.Name(),
 	}
-	installations := map[int64]*proto.Installation{
-		2: {
-			InstallationId: 2,
+	installations := map[string]*proto.Installation{
+		"2": {
+			InstallationId: "2",
 			Tokens: []*proto.CustomToken{{
 				AccessToken:  "access-token",
 				RefreshToken: "refresh-token",
@@ -137,5 +137,5 @@ func TestFileStorage_Load(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(data))
-	assert.Equal(t, int64(1), data[1].InstallationId)
+	assert.Equal(t, "1", data["1"].InstallationId)
 }

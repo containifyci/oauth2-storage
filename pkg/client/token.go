@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/containifyci/github-oauth2-service/pkg/proto"
+	"github.com/containifyci/oauth2-storage/pkg/proto"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
@@ -18,7 +18,7 @@ type Endpoint = oauth2.Endpoint
 
 type Config struct {
 	Ctx            context.Context
-	InstallationId int64
+	InstallationId string
 	User           string
 	Addr           string
 	*OAuth2Config

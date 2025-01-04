@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/containifyci/github-oauth2-service/pkg/proto"
+	"github.com/containifyci/oauth2-storage/pkg/proto"
 )
 
 const (
@@ -16,8 +16,8 @@ type FileStorage struct {
 }
 
 type Storage interface {
-	Load() (map[int64]*proto.Installation, error)
-	Save(tokens map[int64]*proto.Installation) error
+	Load() (map[string]*proto.Installation, error)
+	Save(tokens map[string]*proto.Installation) error
 }
 
 func NewFileStorage(file string) *FileStorage {
@@ -26,18 +26,18 @@ func NewFileStorage(file string) *FileStorage {
 	}
 }
 
-func (s *FileStorage) Load() (map[int64]*proto.Installation, error) {
+func (s *FileStorage) Load() (map[string]*proto.Installation, error) {
 	data, err := os.ReadFile(s.File)
 	if err != nil {
 		return nil, err
 	}
 
-	var tokens map[int64]*proto.Installation
+	var tokens map[string]*proto.Installation
 	err = json.Unmarshal(data, &tokens)
 	return tokens, err
 }
 
-func (s *FileStorage) Save(tokens map[int64]*proto.Installation) error {
+func (s *FileStorage) Save(tokens map[string]*proto.Installation) error {
 	data, err := json.Marshal(tokens)
 	if err != nil {
 		return err

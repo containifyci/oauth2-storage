@@ -1,4 +1,4 @@
-module github.com/containifyci/github-oauth2-service
+module github.com/containifyci/oauth2-storage
 
 go 1.23.3
 

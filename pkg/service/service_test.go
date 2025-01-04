@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containifyci/github-oauth2-service/pkg/auth"
-	"github.com/containifyci/github-oauth2-service/pkg/proto"
-	"github.com/containifyci/github-oauth2-service/pkg/storage"
+	"github.com/containifyci/oauth2-storage/pkg/auth"
+	"github.com/containifyci/oauth2-storage/pkg/proto"
+	"github.com/containifyci/oauth2-storage/pkg/storage"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -51,9 +51,9 @@ func setup() {
 	}
 
 	ctx = context.WithValue(context.Background(), cxtTestKey{}, TestContext{k8sStorage: k8sStorage, fileStorage: fileStorage})
-	installations := map[int64]*proto.Installation{
-		1: {
-			InstallationId: 1,
+	installations := map[string]*proto.Installation{
+		"1": {
+			InstallationId: "1",
 			Tokens: []*proto.CustomToken{{
 				AccessToken:  "access-token",
 				RefreshToken: "refresh-token",
@@ -96,7 +96,7 @@ func TestNewTokenServiceK8s(t *testing.T) {
 func TestRetrieveInstallationToken(t *testing.T) {
 	ts := setupTokenService(t, tokens)
 	req := proto.Installation{
-		InstallationId: 1,
+		InstallationId: "1",
 	}
 	token, err := ts.RetrieveInstallation(context.Background(), &req)
 
@@ -113,7 +113,7 @@ func TestRetrieveInstallationToken(t *testing.T) {
 func TestRetrieveInstallationTokeNotFound(t *testing.T) {
 	ts := setupTokenService(t, "{}")
 	req := proto.Installation{
-		InstallationId: 1,
+		InstallationId: "1",
 	}
 	token, err := ts.RetrieveInstallation(context.Background(), &req)
 
@@ -125,7 +125,7 @@ func TestStoreInstallationToken(t *testing.T) {
 	ts := setupTokenService(t, "{}")
 
 	req := proto.Installation{
-		InstallationId: 1,
+		InstallationId: "1",
 		Tokens: []*proto.CustomToken{
 			&proto.CustomToken{
 				AccessToken:  "access",
@@ -144,7 +144,7 @@ func TestStoreInstallationToken(t *testing.T) {
 func TestRetrieveToken(t *testing.T) {
 	ts := setupTokenService(t, tokens)
 	req := proto.SingleToken{
-		InstallationId: 1,
+		InstallationId: "1",
 		Token: &proto.CustomToken{
 			User: "user",
 		},
@@ -154,7 +154,7 @@ func TestRetrieveToken(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.NotNil(t, installation)
-	assert.Equal(t, int64(1), installation.InstallationId)
+	assert.Equal(t, "1", installation.InstallationId)
 	assert.Equal(t, "access", installation.Token.AccessToken)
 	assert.Equal(t, "refresh", installation.Token.RefreshToken)
 	assert.Equal(t, "type", installation.Token.TokenType)
@@ -164,7 +164,7 @@ func TestRetrieveToken(t *testing.T) {
 func TestUpdateToken(t *testing.T) {
 	ts := setupTokenService(t, tokens)
 	req := proto.SingleToken{
-		InstallationId: 1,
+		InstallationId: "1",
 		Token: &proto.CustomToken{
 			User:         "user",
 			AccessToken:  "new_access",
@@ -180,7 +180,7 @@ func TestUpdateToken(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.NotNil(t, installation)
-	assert.Equal(t, int64(1), installation.InstallationId)
+	assert.Equal(t, "1", installation.InstallationId)
 	assert.Equal(t, "new_access", installation.Token.AccessToken)
 	assert.Equal(t, "new_refresh", installation.Token.RefreshToken)
 	assert.Equal(t, "new_type", installation.Token.TokenType)
@@ -190,7 +190,7 @@ func TestUpdateToken(t *testing.T) {
 func TestStoreToken(t *testing.T) {
 	ts := setupTokenService(t, tokens)
 	req := proto.SingleToken{
-		InstallationId: 1,
+		InstallationId: "1",
 		Token: &proto.CustomToken{
 			User:         "user2",
 			AccessToken:  "new_access",
@@ -202,11 +202,11 @@ func TestStoreToken(t *testing.T) {
 	_, err := ts.StoreToken(context.Background(), &req)
 	assert.NoError(t, err)
 
-	installation, err := ts.RetrieveInstallation(context.Background(), &proto.Installation{InstallationId: 1})
+	installation, err := ts.RetrieveInstallation(context.Background(), &proto.Installation{InstallationId: "1"})
 	assert.NoError(t, err)
 
 	assert.NotNil(t, installation)
-	assert.Equal(t, int64(1), installation.InstallationId)
+	assert.Equal(t, "1", installation.InstallationId)
 	assert.Len(t, installation.Tokens, 2)
 	assert.Equal(t, "new_access", installation.Tokens[1].AccessToken)
 	assert.Equal(t, "new_refresh", installation.Tokens[1].RefreshToken)
@@ -217,7 +217,7 @@ func TestStoreToken(t *testing.T) {
 func TestRevokeToken(t *testing.T) {
 	ts := setupTokenService(t, tokens)
 	req := proto.SingleToken{
-		InstallationId: 1,
+		InstallationId: "1",
 		Token: &proto.CustomToken{
 			User: "user",
 		},
@@ -226,11 +226,11 @@ func TestRevokeToken(t *testing.T) {
 	_, err := ts.RevokeToken(context.Background(), &req)
 	assert.NoError(t, err)
 
-	installation, err := ts.RetrieveInstallation(context.Background(), &proto.Installation{InstallationId: 1})
+	installation, err := ts.RetrieveInstallation(context.Background(), &proto.Installation{InstallationId: "1"})
 	assert.NoError(t, err)
 
 	assert.NotNil(t, installation)
-	assert.Equal(t, int64(1), installation.InstallationId)
+	assert.Equal(t, "1", installation.InstallationId)
 	assert.Len(t, installation.Tokens, 0)
 }
 
@@ -255,42 +255,42 @@ func TestHttpServer(t *testing.T) {
 			method:   http.MethodGet,
 			path:     "/tokens/1",
 			body:     "",
-			expected: `{"installation_id":1,"tokens":[{"access_token":"access","refresh_token":"refresh","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"type","user":"user"}]}`,
+			expected: `{"installation_id":"1","tokens":[{"access_token":"access","refresh_token":"refresh","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"type","user":"user"}]}`,
 		},
 		{
 			name:     "GET /tokens/1?user=user",
 			method:   http.MethodGet,
 			path:     "/tokens/1?user=user",
 			body:     "",
-			expected: `{"installation_id":1,"token":{"access_token":"access","refresh_token":"refresh","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"type","user":"user"}}`,
+			expected: `{"installation_id":"1","token":{"access_token":"access","refresh_token":"refresh","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"type","user":"user"}}`,
 		},
 		{
 			name:     "POST /tokens/1",
 			method:   http.MethodPost,
 			path:     "/tokens/1",
-			body:     `{"installation_id":1,"tokens":[{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}]}`,
-			expected: `{"installation_id":1,"tokens":[{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}]}`,
+			body:     `{"installation_id":"1","tokens":[{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}]}`,
+			expected: `{"installation_id":"1","tokens":[{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}]}`,
 		},
 		{
 			name:     "POST /tokens/1?user=new_user",
 			method:   http.MethodPost,
 			path:     "/tokens/1?user=new_user",
-			body:     `{"installation_id":1,"token":{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}}`,
-			expected: `{"installation_id":1,"token":{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}}`,
+			body:     `{"installation_id":"1","token":{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}}`,
+			expected: `{"installation_id":"1","token":{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}}`,
 		},
 		{
 			name:     "PUT /tokens/1",
 			method:   http.MethodPut,
 			path:     "/tokens/1",
-			body:     `{"installation_id":1,"tokens":[{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}]}`,
-			expected: `{"installation_id":1,"tokens":[{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}]}`,
+			body:     `{"installation_id":"1","tokens":[{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}]}`,
+			expected: `{"installation_id":"1","tokens":[{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}]}`,
 		},
 		{
 			name:     "PUT /tokens/1?user=user",
 			method:   http.MethodPut,
 			path:     "/tokens/1?user=user",
-			body:     `{"installation_id":1,"token":{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}}`,
-			expected: `{"installation_id":1,"token":{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}}`,
+			body:     `{"installation_id":"1","token":{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}}`,
+			expected: `{"installation_id":"1","token":{"access_token":"new_access","refresh_token":"new_refresh_token","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"new_type","user":"new_user"}}`,
 		},
 	}
 
@@ -410,7 +410,7 @@ func TestTokenStorage_Load(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(data))
-	assert.Equal(t, int64(1), data[1].InstallationId)
+	assert.Equal(t, "1", data["1"].InstallationId)
 }
 
 func TestTokenStorage_Save(t *testing.T) {
@@ -421,9 +421,9 @@ func TestTokenStorage_Save(t *testing.T) {
 		StorageFile: file.Name(),
 	})
 
-	storage.tokens = map[int64]*proto.Installation{
-		2: {
-			InstallationId: 2,
+	storage.tokens = map[string]*proto.Installation{
+		"2": {
+			InstallationId: "2",
 			Tokens: []*proto.CustomToken{{
 				AccessToken:  "access-token",
 				RefreshToken: "refresh-token",
@@ -442,9 +442,9 @@ func TestTokenStorage_SyncWithError(t *testing.T) {
 		StorageFile: "./test_/adsasdsadsa",
 	})
 
-	storage.tokens = map[int64]*proto.Installation{
-		2: {
-			InstallationId: 2,
+	storage.tokens = map[string]*proto.Installation{
+		"2": {
+			InstallationId: "2",
 			Tokens: []*proto.CustomToken{{
 				AccessToken:  "access-token",
 				RefreshToken: "refresh-token",
@@ -527,4 +527,4 @@ func generateECDSAKey() (privateKey string, publicKey string) {
 	return privateKey, publicKey
 }
 
-const tokens = `{"1":{"installation_id":1,"tokens":[{"access_token":"access","refresh_token":"refresh","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"type","user":"user"}]}}`
+const tokens = `{"1":{"installation_id":"1","tokens":[{"access_token":"access","refresh_token":"refresh","expiry":{"seconds":1715603314,"nanos":409109000},"token_type":"type","user":"user"}]}}`
