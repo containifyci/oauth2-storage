@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/containifyci/go-self-update/pkg/systemd"
 	"github.com/containifyci/go-self-update/pkg/updater"
 
 	"github.com/containifyci/oauth2-storage/pkg/service"
@@ -33,6 +34,7 @@ func main() {
 	case "update":
 		u := updater.NewUpdater(
 			"oauth2-storage", "containifyci", "oauth2-storage", version,
+			updater.WithUpdateHook(systemd.SystemdRestartHook("oauth2-storage")),
 		)
 		updated, err := u.SelfUpdate()
 		if err != nil {
