@@ -78,23 +78,27 @@ func NewAuthInterceptor(accessTokenFnc func() string) *AuthInterceptor {
 
 // END GRPC Authentication Interceptor
 
-func NewClient(auth AuthInterceptor, addr string) (proto.TokenClient, func(), error) {
+func NewClient(auth AuthInterceptor, addr string) (proto.TokenClient, func() error, error) {
 	// Initialize a gRPC connection
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(auth.Unary()),
 		grpc.WithStreamInterceptor(auth.Stream()))
 	if err != nil {
 		log.Error().Err(err).Msgf("Failed to connect to gRPC server: %v\n", err)
-		return nil, func() {}, err
+		return nil, func() error { return nil }, err
 	}
 
 	// Initialize a gRPC client
-	return proto.NewTokenClient(conn), func() { conn.Close() }, nil
+	return proto.NewTokenClient(conn), func() error { return conn.Close() }, nil
 }
 
 func (c *Config) StoreToken(token *oauth2.Token) error {
 	grpcClient, close, err := NewClient(c.AuthInterceptor, c.Addr)
-	defer close()
+	defer func() {
+		if err := close(); err != nil {
+			log.Error().Err(err).Msgf("Failed to close gRPC connection: %v\n", err)
+		}
+	}()
 	if err != nil {
 		log.Error().Err(err).Msgf("Failed to connect to gRPC server: %v\n", err)
 		return err
@@ -124,7 +128,11 @@ func (c *Config) StoreToken(token *oauth2.Token) error {
 func (c *Config) RetrieveToken() (*oauth2.Token, error) {
 	grpcClient, close, err := NewClient(c.AuthInterceptor, c.Addr)
 
-	defer close()
+	defer func() {
+		if err := close(); err != nil {
+			log.Error().Err(err).Msgf("Failed to close gRPC connection: %v\n", err)
+		}
+	}()
 	if err != nil {
 		log.Error().Err(err).Msgf("Failed to connect to gRPC server: %v\n", err)
 		return nil, err
@@ -151,7 +159,11 @@ func (c *Config) RetrieveToken() (*oauth2.Token, error) {
 
 func (c *Config) RevokeToken() error {
 	grpcClient, close, err := NewClient(c.AuthInterceptor, c.Addr)
-	defer close()
+	defer func() {
+		if err := close(); err != nil {
+			log.Error().Err(err).Msgf("Failed to close gRPC connection: %v\n", err)
+		}
+	}()
 	if err != nil {
 		log.Error().Err(err).Msgf("Failed to connect to gRPC server: %v\n", err)
 		return err
