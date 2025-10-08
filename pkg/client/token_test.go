@@ -110,7 +110,7 @@ func TestTokenSourceFrom(t *testing.T) {
 
 	srv := NewMockOAuth2Server()
 	defer srv.Close()
-	config.OAuth2Config.Endpoint = srv.Endpoint()
+	config.Endpoint = srv.Endpoint()
 
 	ctx := context.Background()
 	tokenSource := config.TokenSourceFrom(ctx)
@@ -157,7 +157,7 @@ func setupGRPCClient(t *testing.T, user string) Config {
 		User:            user,
 		OAuth2Config:    cfg2.GetConfig(),
 	}
-	config.OAuth2Config.Endpoint.AuthURL = fmt.Sprintf("http://localhost:%d", cfg.GRPCPort)
+	config.Endpoint.AuthURL = fmt.Sprintf("http://localhost:%d", cfg.GRPCPort)
 	return config
 }
 
@@ -245,7 +245,12 @@ func getFreePort() int {
 	if err != nil {
 		panic(err)
 	}
-	defer l.Close()
+	defer func() {
+		err := l.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
 	return l.Addr().(*net.TCPAddr).Port
 }
 
