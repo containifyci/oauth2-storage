@@ -25,6 +25,7 @@ import (
 )
 
 type cxtTestKey struct{}
+
 var ctx context.Context
 
 type TestContext struct {
@@ -44,7 +45,7 @@ Setup the storages with dummy data for testing
 func setup() {
 	k8sStorage := storage.K8sStorage{
 		Namespace: "test",
-		Clientset: testclient.NewSimpleClientset(),
+		Clientset: testclient.NewClientset(),
 	}
 	fileStorage := storage.FileStorage{
 		File: os.TempDir() + "/dunebot-token-storage.json",
@@ -398,7 +399,6 @@ func TestAuthorizeFailed(t *testing.T) {
 	}
 }
 
-
 func TestTokenStorage_Load(t *testing.T) {
 	ctx := ctx.Value(cxtTestKey{}).(TestContext)
 	storage := NewTokenService(Config{
@@ -457,7 +457,7 @@ func TestTokenStorage_SyncWithError(t *testing.T) {
 	ctx2, cancel := context.WithCancel(ctx)
 	// Create a buffered channel to communicate errors from the goroutine
 	errCh := make(chan error, 1)
-	storage.SyncWithError(ctx2, 1 * time.Second, errCh)
+	storage.SyncWithError(ctx2, 1*time.Second, errCh)
 	time.Sleep(2 * time.Second)
 	cancel()
 	// Wait for the goroutine to finish
@@ -468,7 +468,6 @@ func TestTokenStorage_SyncWithError(t *testing.T) {
 		assert.Fail(t, "expected error")
 	}
 }
-
 
 // utility functions
 
