@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/containifyci/go-self-update v0.2.4
-	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/mux v1.8.1
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.11.1
