@@ -8,8 +8,8 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/oauth2 v0.35.0
-	google.golang.org/grpc v1.79.1
+	golang.org/x/oauth2 v0.36.0
+	google.golang.org/grpc v1.79.2
 	google.golang.org/protobuf v1.36.11
 	k8s.io/api v0.35.2
 	k8s.io/apimachinery v0.35.2
