@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	testclient "k8s.io/client-go/kubernetes/fake"
 )
 
 type cxtTestKey struct{}
@@ -29,7 +28,6 @@ type cxtTestKey struct{}
 var ctx context.Context
 
 type TestContext struct {
-	k8sStorage  storage.K8sStorage
 	fileStorage storage.FileStorage
 }
 
@@ -43,15 +41,11 @@ func TestMain(m *testing.M) {
 Setup the storages with dummy data for testing
 */
 func setup() {
-	k8sStorage := storage.K8sStorage{
-		Namespace: "test",
-		Clientset: testclient.NewClientset(),
-	}
 	fileStorage := storage.FileStorage{
 		File: os.TempDir() + "/dunebot-token-storage.json",
 	}
 
-	ctx = context.WithValue(context.Background(), cxtTestKey{}, TestContext{k8sStorage: k8sStorage, fileStorage: fileStorage})
+	ctx = context.WithValue(context.Background(), cxtTestKey{}, TestContext{fileStorage: fileStorage})
 	installations := map[string]*proto.Installation{
 		"1": {
 			InstallationId: "1",
@@ -65,11 +59,7 @@ func setup() {
 			},
 		}}
 
-	err := k8sStorage.Save(installations)
-	if err != nil {
-		panic(err)
-	}
-	err = fileStorage.Save(installations)
+	err := fileStorage.Save(installations)
 	if err != nil {
 		panic(err)
 	}
@@ -82,10 +72,9 @@ func TestNewTokenServiceFile(t *testing.T) {
 	assert.IsType(t, &storage.FileStorage{}, ts.storage)
 }
 
-func TestNewTokenServiceK8s(t *testing.T) {
+func TestNewTokenServiceNoStorage(t *testing.T) {
 	cfg := Config{
 		TokenSyncPeriod: "1m",
-		PodNamespace:    "test",
 	}
 
 	ts := NewTokenService(cfg)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -19,10 +20,6 @@ import (
 	"github.com/containifyci/oauth2-storage/pkg/proto"
 	"github.com/containifyci/oauth2-storage/pkg/storage"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/gorilla/mux"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
@@ -50,23 +47,13 @@ func NewTokenService(cfg Config) *TokenService {
 
 	if cfg.StorageFile != "" {
 		tkSrv.storage = storage.NewFileStorage(cfg.StorageFile)
-	} else if cfg.PodNamespace != "" {
-		tkSrv.storage = func() storage.Storage {
-			st, err := storage.NewK8sStorage(cfg.PodNamespace, storage.InClusterConfig())
-			if err != nil {
-				log.Error().Err(err).Msgf("error loading tokens from k8s secret: %s", err)
-				return nil
-			}
-			return st
-		}()
 	}
 	err := tkSrv.Load()
 	if err != nil {
-		log.Error().Err(err).Msgf("error loading tokens: %s\n", err)
+		slog.Error("error loading tokens", "error", err)
 	}
 	return &tkSrv
 }
-
 
 func (s *TokenService) Save() error {
 	if s.storage == nil {
@@ -93,11 +80,6 @@ func (s *TokenService) Load() error {
 	return nil
 }
 
-// TokenService represents a service for managing OAuth2 tokens.
-type Token struct {
-	*oauth2.Token
-}
-
 // RetrieveToken retrieves an OAuth2 token for a given GitHub user login name.
 func (s *TokenService) RetrieveInstallation(ctx context.Context, req *proto.Installation) (*proto.Installation, error) {
 	s.mu.RLock()
@@ -118,19 +100,19 @@ func (s *TokenService) RetrieveToken(ctx context.Context, req *proto.SingleToken
 
 	tokens := s.tokens[req.InstallationId]
 	if tokens == nil {
-		log.Error().Msgf("requested token for %s not found\n", req.InstallationId)
+		slog.Error("requested token not found", "installationId", req.InstallationId)
 		return nil, fmt.Errorf("requested token for %s not found", req.InstallationId)
 	}
 	for i, token := range tokens.Tokens {
 		if token.User == req.Token.User {
-			log.Debug().Msgf("found token for %s and user %s\n", req.InstallationId, token.User)
+			slog.Debug("found token", "installationId", req.InstallationId, "user", token.User)
 			return &proto.SingleToken{
 				InstallationId: req.InstallationId,
 				Token:          tokens.Tokens[i],
 			}, nil
 		}
 	}
-	log.Error().Msgf("requested token for %s and user %s not found\n", req.InstallationId, req.Token.User)
+	slog.Error("requested token not found", "installationId", req.InstallationId, "user", req.Token.User)
 	return nil, fmt.Errorf("requested token for %s and user %s not found", req.InstallationId, req.Token.User)
 }
 
@@ -220,14 +202,12 @@ func (s *TokenService) StoreInstallation(ctx context.Context, req *proto.Install
 
 // HTTP Server
 func startHTTPServer(tokenService *TokenService) *http.Server {
-	router := mux.NewRouter()
+	mux := http.NewServeMux()
 
-	router.HandleFunc("/tokens/{installationId}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
+	mux.HandleFunc("/tokens/{installationId}", func(w http.ResponseWriter, r *http.Request) {
+		installationId := r.PathValue("installationId")
 		user := r.URL.Query().Get("user")
-		log.Debug().Msgf("installationId: %s\n", vars["installationId"])
-		fmt.Printf("user: %s\n", user)
-		installationId := vars["installationId"]
+		slog.Debug("http request", "installationId", installationId)
 
 		switch r.Method {
 		case http.MethodGet:
@@ -311,17 +291,17 @@ func startHTTPServer(tokenService *TokenService) *http.Server {
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-	}).Methods(http.MethodGet, http.MethodPost, http.MethodPut)
+	})
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", tokenService.cfg.HTTPPort),
-		Handler: router,
+		Handler: mux,
 	}
 	go func() {
-		logger := zerolog.New(os.Stdout).With().Caller().Stack().Timestamp().Logger()
-		err := http.ListenAndServe(srv.Addr, router)
+		err := srv.ListenAndServe()
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Fatal().Err(err).Msg("http server exited")
+			slog.Error("http server exited", "error", err)
+			os.Exit(1)
 		}
 	}()
 	return srv
@@ -330,7 +310,6 @@ func startHTTPServer(tokenService *TokenService) *http.Server {
 // gRPC Server
 type AuthInterceptor struct {
 	authSrv *auth.AuthService
-	// accessibleRoles map[string][]string
 }
 
 func NewAuthInterceptor(publicKey string) *AuthInterceptor {
@@ -349,11 +328,11 @@ func (interceptor *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (interface{}, error) {
-		log.Debug().Msgf("--> unary interceptor: %s", info.FullMethod)
+		slog.Debug("unary interceptor", "method", info.FullMethod)
 
 		err := interceptor.authorize(ctx, "dunebot")
 		if err != nil {
-			log.Error().Err(err).Msgf("unauthorized request: %s", err)
+			slog.Error("unauthorized request", "error", err)
 			return nil, err
 		}
 
@@ -368,11 +347,11 @@ func (interceptor *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
 	) error {
-		log.Debug().Msgf("--> stream interceptor: %s", info.FullMethod)
+		slog.Debug("stream interceptor", "method", info.FullMethod)
 
 		err := interceptor.authorize(stream.Context(), "dunebot")
 		if err != nil {
-			log.Error().Err(err).Msgf("unauthorized request: %s", err)
+			slog.Error("unauthorized request", "error", err)
 			return err
 		}
 
@@ -383,7 +362,7 @@ func (interceptor *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 func (interceptor *AuthInterceptor) authorize(ctx context.Context, serviceName string) error {
 
 	if interceptor.authSrv == nil {
-		log.Info().Msg("Authentication is disabled !!! (no public key)")
+		slog.Info("Authentication is disabled (no public key)")
 		return nil
 	}
 
@@ -403,7 +382,7 @@ func (interceptor *AuthInterceptor) authorize(ctx context.Context, serviceName s
 		return fmt.Errorf("access token is invalid: %v", err)
 	}
 
-	log.Debug().Msgf("received claim %+v\n", claims)
+	slog.Debug("received claim", "claims", claims)
 	val := jwt.NewValidator(jwt.WithSubject(fmt.Sprintf("service:%s", serviceName)))
 
 	err = val.Validate(claims)
@@ -419,10 +398,11 @@ func StartGRPCServer(tokenService *TokenService) *grpc.Server {
 
 	listen, err := net.Listen("tcp", fmt.Sprintf(":%d", tokenService.cfg.GRPCPort))
 	if err != nil {
-		log.Fatal().Msgf("Failed to listen: %s", err)
+		slog.Error("Failed to listen", "error", err)
+		os.Exit(1)
 	}
 
-	log.Debug().Msgf("public key: %s\n", tokenService.cfg.PublicKey)
+	slog.Debug("starting gRPC server", "publicKey", tokenService.cfg.PublicKey)
 
 	interceptor := NewAuthInterceptor(tokenService.cfg.PublicKey)
 
@@ -437,10 +417,11 @@ func StartGRPCServer(tokenService *TokenService) *grpc.Server {
 	reflection.Register(server)
 
 	go func() {
-		log.Debug().Msgf("gRPC server listening on :%d\n", tokenService.cfg.GRPCPort)
+		slog.Debug("gRPC server listening", "port", tokenService.cfg.GRPCPort)
 
 		if err := server.Serve(listen); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			log.Fatal().Err(err).Msgf("Failed to serve: %s", err)
+			slog.Error("Failed to serve", "error", err)
+			os.Exit(1)
 		}
 	}()
 	return server
@@ -459,7 +440,7 @@ func StartServers(cfg Config) error {
 	// Log errors from the SyncWithError goroutine
 	go func() {
 		for err := range errCh {
-			log.Error().Err(err).Msgf("Failed sync token storage: %s", err)
+			slog.Error("Failed sync token storage", "error", err)
 		}
 	}()
 
@@ -469,23 +450,23 @@ func StartServers(cfg Config) error {
 	srv := startHTTPServer(tokenService)
 	grpcSrv := StartGRPCServer(tokenService)
 
-	log.Debug().Msgf("Server Started wait for termination")
+	slog.Debug("Server started, waiting for termination")
 
 	<-sigCh
 	ctxShutDown, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctxShutDown); err != nil {
-		log.Fatal().Msgf("server Shutdown Failed: %+s", err)
-		return err
+		slog.Error("server shutdown failed", "error", err)
+		os.Exit(1)
 	}
 
-	log.Debug().Msgf("server exited properly")
+	slog.Debug("server exited properly")
 
 	grpcSrv.GracefulStop()
 	err := tokenService.Save()
 	if err != nil {
-		log.Error().Err(err).Msgf("error saving tokens %s\n", err)
+		slog.Error("error saving tokens", "error", err)
 	}
 	return nil
 }
@@ -501,14 +482,12 @@ func (s *TokenService) SyncWithError(ctx context.Context, period time.Duration, 
 			case <-ticker.C:
 				err := s.Save()
 				if err != nil {
-					//TODO find a better way to log this
-					fmt.Printf("error saving tokens %s\n", err)
+					slog.Error("error saving tokens", "error", err)
 					if errCh != nil {
 						select {
 						case errCh <- err:
 						default:
-							fmt.Printf("error channel is blocked cant receive %s\n", err)
-							// If the channel is blocked, just continue without sending the error
+							slog.Error("error channel is blocked", "error", err)
 						}
 					}
 				}

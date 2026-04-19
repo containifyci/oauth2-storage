@@ -3,9 +3,9 @@ package client
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/containifyci/oauth2-storage/pkg/proto"
-	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -43,7 +43,7 @@ func (interceptor *AuthInterceptor) Unary() grpc.UnaryClientInterceptor {
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,
 	) error {
-		log.Debug().Msgf("--> unary interceptor: %s", method)
+		slog.Debug("unary interceptor", "method", method)
 
 		return invoker(interceptor.attachToken(ctx), method, req, reply, cc, opts...)
 	}
@@ -58,7 +58,7 @@ func (interceptor *AuthInterceptor) Stream() grpc.StreamClientInterceptor {
 		streamer grpc.Streamer,
 		opts ...grpc.CallOption,
 	) (grpc.ClientStream, error) {
-		log.Debug().Msgf("--> stream interceptor: %s", method)
+		slog.Debug("stream interceptor", "method", method)
 
 		return streamer(interceptor.attachToken(ctx), desc, cc, method, opts...)
 	}
@@ -84,7 +84,7 @@ func NewClient(auth AuthInterceptor, addr string) (proto.TokenClient, func() err
 		grpc.WithUnaryInterceptor(auth.Unary()),
 		grpc.WithStreamInterceptor(auth.Stream()))
 	if err != nil {
-		log.Error().Err(err).Msgf("Failed to connect to gRPC server: %v\n", err)
+		slog.Error("Failed to connect to gRPC server", "error", err)
 		return nil, func() error { return nil }, err
 	}
 
@@ -96,11 +96,11 @@ func (c *Config) StoreToken(token *oauth2.Token) error {
 	grpcClient, close, err := NewClient(c.AuthInterceptor, c.Addr)
 	defer func() {
 		if err := close(); err != nil {
-			log.Error().Err(err).Msgf("Failed to close gRPC connection: %v\n", err)
+			slog.Error("Failed to close gRPC connection", "error", err)
 		}
 	}()
 	if err != nil {
-		log.Error().Err(err).Msgf("Failed to connect to gRPC server: %v\n", err)
+		slog.Error("Failed to connect to gRPC server", "error", err)
 		return err
 	}
 	tk := &proto.CustomToken{
@@ -111,15 +111,15 @@ func (c *Config) StoreToken(token *oauth2.Token) error {
 		User:         c.User,
 	}
 
-	log.Debug().Msgf("Store Token for user: %s+\n", tk.User)
-	log.Debug().Msgf("Token Expiry: %s\n", tk.Expiry.AsTime())
+	slog.Debug("Store Token", "user", tk.User)
+	slog.Debug("Token Expiry", "expiry", tk.Expiry.AsTime())
 
 	_, err = grpcClient.StoreToken(c.Ctx, &proto.SingleToken{
 		InstallationId: c.InstallationId,
 		Token:          tk,
 	})
 	if err != nil {
-		log.Error().Err(err).Msgf("Failed to store token %s\n", err)
+		slog.Error("Failed to store token", "error", err)
 		return err
 	}
 	return nil
@@ -130,11 +130,11 @@ func (c *Config) RetrieveToken() (*oauth2.Token, error) {
 
 	defer func() {
 		if err := close(); err != nil {
-			log.Error().Err(err).Msgf("Failed to close gRPC connection: %v\n", err)
+			slog.Error("Failed to close gRPC connection", "error", err)
 		}
 	}()
 	if err != nil {
-		log.Error().Err(err).Msgf("Failed to connect to gRPC server: %v\n", err)
+		slog.Error("Failed to connect to gRPC server", "error", err)
 		return nil, err
 	}
 
@@ -145,7 +145,7 @@ func (c *Config) RetrieveToken() (*oauth2.Token, error) {
 		},
 	})
 	if err != nil {
-		log.Error().Err(err).Msgf("Failed to retrieve token from gRPC server: %v\n", err)
+		slog.Error("Failed to retrieve token from gRPC server", "error", err)
 		return nil, err
 	}
 
@@ -161,11 +161,11 @@ func (c *Config) RevokeToken() error {
 	grpcClient, close, err := NewClient(c.AuthInterceptor, c.Addr)
 	defer func() {
 		if err := close(); err != nil {
-			log.Error().Err(err).Msgf("Failed to close gRPC connection: %v\n", err)
+			slog.Error("Failed to close gRPC connection", "error", err)
 		}
 	}()
 	if err != nil {
-		log.Error().Err(err).Msgf("Failed to connect to gRPC server: %v\n", err)
+		slog.Error("Failed to connect to gRPC server", "error", err)
 		return err
 	}
 
@@ -176,12 +176,12 @@ func (c *Config) RevokeToken() error {
 		},
 	})
 	if err != nil {
-		log.Error().Err(err).Msgf("Failed to revoke token from gRPC server: %v\n", err)
+		slog.Error("Failed to revoke token from gRPC server", "error", err)
 		return err
 	}
 
 	if message.Revoked {
-		log.Debug().Msgf("Successfully revoked token for %s\n", c.User)
+		slog.Debug("Successfully revoked token", "user", c.User)
 		return nil
 	}
 
@@ -191,10 +191,10 @@ func (c *Config) RevokeToken() error {
 func (c *Config) TokenSourceFrom(ctx context.Context) oauth2.TokenSource {
 	t, err := c.RetrieveToken()
 	if err != nil {
-		log.Error().Err(err).Msgf("Failed to retrieve token from gRPC server: %v\n", err)
+		slog.Error("Failed to retrieve token from gRPC server", "error", err)
 		return nil
 	}
-	log.Debug().Msgf("Retrieved token: %v+\n", t)
+	slog.Debug("Retrieved token", "token", t)
 	return c.TokenSource(ctx, t)
 }
 

@@ -7,10 +7,6 @@ import (
 	"github.com/containifyci/oauth2-storage/pkg/proto"
 )
 
-const (
-	DefaultK8sSecret = "dunebot-token-storage"
-)
-
 type FileStorage struct {
 	File string
 }
