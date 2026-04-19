@@ -68,7 +68,6 @@ func start() {
 		PublicKey:       getenv("PUBLIC_KEY", *publicKey),
 		GRPCPort:        getenvi("GRPC_PORT", *grpcPort),
 		HTTPPort:        getenvi("HTTP_PORT", *httpPort),
-		PodNamespace:    getenv("POD_NAMESPACE", ""),
 		TokenSyncPeriod: getenv("TOKEN_SYNC_PERIOD", "0m"),
 	})
 	if err != nil {

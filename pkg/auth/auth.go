@@ -6,12 +6,13 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
+	"os"
 
 	"reflect"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/rs/zerolog/log"
 )
 
 type ServiceClaims struct {
@@ -32,19 +33,21 @@ func NewSigningService(privateKey string) *AuthService {
 	if privateKey != "" {
 		data, err := base64.StdEncoding.DecodeString(privateKey)
 		if err != nil {
-			log.Fatal().Msgf("error: %s", err)
+			slog.Error("error decoding private key", "error", err)
+			os.Exit(1)
 		}
 
 		block, _ := pem.Decode(data)
 		if block == nil {
-			log.Fatal().Msgf("Error decoding PEM block")
-			return nil // return explicit nil because golangci-lint does not detect os.Exit(1) as part of the log.Fatal() call
+			slog.Error("Error decoding PEM block")
+			os.Exit(1)
 		}
 
 		ecPrivateKey, err = x509.ParseECPrivateKey(block.Bytes)
 
 		if err != nil {
-			log.Fatal().Msgf("Error retrieving private key: %s", err)
+			slog.Error("Error retrieving private key", "error", err)
+			os.Exit(1)
 		}
 	}
 
@@ -61,24 +64,27 @@ func NewVerifyService(publicKey string) *AuthService {
 	}
 	data, err := base64.StdEncoding.DecodeString(publicKey)
 	if err != nil {
-		log.Fatal().Msgf("error: %s", err)
+		slog.Error("error decoding public key", "error", err)
+		os.Exit(1)
 	}
 
 	block, _ := pem.Decode(data)
 	if block == nil {
-		log.Fatal().Msgf("failed to parse PEM block containing the public key")
-		return nil // return explicit nil because golangci-lint does not detect os.Exit(1) as part of the log.Fatal() call
+		slog.Error("failed to parse PEM block containing the public key")
+		os.Exit(1)
 	}
 
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		log.Fatal().Msgf("failed to parse DER encoded public key: %s", err)
+		slog.Error("failed to parse DER encoded public key", "error", err)
+		os.Exit(1)
 	}
 
 	if key, ok := pub.(*ecdsa.PublicKey); ok {
 		return &AuthService{publicKey: key}
 	}
-	log.Fatal().Msgf("Failed to get ecdsa Public Key: %s", reflect.TypeOf(pub))
+	slog.Error("Failed to get ecdsa Public Key", "type", reflect.TypeOf(pub))
+	os.Exit(1)
 	return nil
 }
 
@@ -99,7 +105,8 @@ func (a *AuthService) CreateTokenFnc(scl ServiceClaims) func() string {
 			// Generate the JWT string (without signing)
 			tokenString, err := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
 			if err != nil {
-				log.Fatal().Msgf("Error creating unsigned token: %s", err)
+				slog.Error("Error creating unsigned token", "error", err)
+				os.Exit(1)
 			}
 			return tokenString
 		}
@@ -117,7 +124,8 @@ func (a *AuthService) CreateTokenFnc(scl ServiceClaims) func() string {
 		// Sign and get the complete encoded token as a string using the secret
 		tokenString, err := token.SignedString(a.privateKey)
 		if err != nil {
-			log.Fatal().Msgf("Error signing token: %s", err)
+			slog.Error("Error signing token", "error", err)
+			os.Exit(1)
 		}
 		return tokenString
 	}

@@ -1,9 +1,9 @@
 package config
 
 import (
+	"log/slog"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
@@ -14,7 +14,6 @@ type (
 		PublicKey       string
 		GRPCPort        int
 		HTTPPort        int
-		PodNamespace    string
 		TokenSyncPeriod string
 	}
 
@@ -32,7 +31,7 @@ func (cfg Config) TokenSyncPeriodDuration() time.Duration {
 	}
 	duration, err := time.ParseDuration(cfg.TokenSyncPeriod)
 	if err != nil {
-		log.Error().Err(err).Msgf("error %s parsing client timeout '%s'", err, cfg.TokenSyncPeriod)
+		slog.Error("error parsing token sync period", "error", err, "value", cfg.TokenSyncPeriod)
 		duration = 5 * time.Second
 	}
 	return duration
